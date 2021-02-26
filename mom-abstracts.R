@@ -1,35 +1,38 @@
 setwd("G:/My Drive/Research/parent-reliability/abstracts/")
 
 library(tidyverse)
+library(ggVennDiagram)
 select <- dplyr::select
 
-list.files()
+files <- list.files("data/", "*.tsv", full.names = TRUE)
 
-
-load_data <- function(tsv, string) {
+load_data <- function(tsv) {
 
   columnnames <- c("info", "title", "authors", "author_info", "abstract", "CR",
                    "doi_pmid", "coi")
 
   data <- read.delim(tsv, header = FALSE)
 
-  data %>%
+  result <- data %>%
     setNames(columnnames[1:ncol(.)]) %>%
     separate(info, into = c("index", "info"), sep = ". ", extra = "merge",
              convert = TRUE) %>%
     mutate(
-      year = str_extract(info, paste(string, "....")) %>%
-              str_remove(string) %>%
-              as.numeric()
-    ) %>%
-    return()
+      year = str_extract(info, "^.*[.] [12][09][0-9][0-9]") %>%
+              str_remove("^.*[.]") %>%
+              as.numeric(),
+      journal = str_extract(info, "^[^.]+") %>%
+                  str_remove("[. ]")
+    )
+
+  return(result)
 
 }
 
 extract_text <- function(data) {
 
   data %>%
-    select(index, abstract) %>%
+    select(journal, index, abstract) %>%
     mutate(
       abstract = tolower(abstract),
       moms     = str_detect(abstract, "mother"),
@@ -57,84 +60,65 @@ to_venn <- function(x, sub = 1:4) {
 ################################################################################
 # Child Dev
 
-child_dev <- load_data("ChildDev.tsv", "Child Dev.") %>%
-  extract_text()
-
-child_dev2 <- child_dev %>%
-  filter(moms | dads) %>%
-  group_by(moms, dads) %>%
-  dplyr::summarize(
-    n = n()
+data <- tibble(
+    file = files
   ) %>%
   mutate(
-    journal = "ChildDev"
+    data = map(file, load_data),
+    text = map(data, extract_text)
   )
 
-child_dev %>%
-  to_venn(1:2) %>%
-  ggVennDiagram()
+text <- data %>%
+  select(-data) %>%
+  unnest(cols = c(text)) %>%
+  select(-file) %>%
+  mutate(
+    index = as.numeric(index)
+  ) %>%
+  filter(!is.na(index))
 
-################################################################################
-# Dev Sci
-
-dev_sci <- load_data("DevSci.tsv", "Dev Sci.") %>%
-  extract_text()
-
-dev_sci2 <- dev_sci %>%
+summary <- text %>%
   filter(moms | dads) %>%
-  group_by(moms, dads) %>%
+  group_by(journal, moms, dads) %>%
   dplyr::summarize(
     n = n()
-  ) %>%
-  mutate(
-    journal = "DevSci"
   )
 
-dev_sci %>%
-  to_venn() %>%
+png("venn1.png")
+
+text %>%
+  to_venn(1:4) %>%
   ggVennDiagram()
 
-dev_psych <- load_data("DevPsych.tsv", "Dev Psych.") %>%
-  extract_text()
-
-dev_psych2 <- dev_psych %>%
-  filter(moms | dads) %>%
-  group_by(moms, dads) %>%
-  dplyr::summarize(
-    n = n()
-  ) %>%
-  mutate(
-    journal = "DevPsych"
-  )
-
-dev_psych %>%
-  to_venn() %>%
-  ggVennDiagram()
+dev.off()
 
 ################################################################################
 
 mom_dad_lut <- tibble(
   moms = c(TRUE, TRUE, FALSE),
   dads = c(TRUE, FALSE, TRUE),
-  val  = c("mom_and_dad", "mom_only", "dad_only")
+  val  = c("Mom/Dad", "Mom only", "Dad only")
 )
 
-all2 <- bind_rows(child_dev2, dev_psych2, dev_sci2) %>%
-  left_join(mom_dad_lut)
+all2 <- left_join(text, mom_dad_lut)
 
-all2_sum <- all2 %>%
+journal_total <- all2 %>%
   group_by(journal) %>%
-  dplyr::summarize(
-    sum = sum(n)
-  )
+  summarize(total = n())
 
-all2 <- left_join(all2, all2_sum) %>%
-  mutate(
-    p = n / sum
-  )
+all2_total <- all2 %>%
+  group_by(journal, val) %>%
+  summarize(n = n()) %>%
+  left_join(journal_total) %>%
+  mutate(p = n / total) %>%
+  filter(!is.na(val))
 
-ggplot(all2, aes(x = val, y = p * 100, fill = journal)) +
-  geom_histogram(stat = "identity", position = "dodge") +
-  scale_y_continuous(limits = c(0, 100)) +
+png("histo1.png", width = 800, 400)
+
+ggplot(all2_total, aes(x = val, y = p * 100, fill = journal)) +
+  geom_bar(stat = "identity", position = "dodge") +
   theme_bw() +
-  labs(x = "Abstract content", y = "% papers mentioning mom|dad")
+  labs(x = "Abstract content", y = "% papers mentioning mom|dad",
+       fill = "Journal")
+
+dev.off()

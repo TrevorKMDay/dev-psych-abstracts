@@ -2,6 +2,8 @@
 
 in=${1}
 
+dos2unix ${in}
+
 cat ${in} | \
     tr '\n' '\t' | \
     sed -e 's/\t\t\t/\n/g' \
