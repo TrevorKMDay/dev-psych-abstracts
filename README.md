@@ -6,5 +6,6 @@ in common developmental psychology journals (date downloaded):
 - *Child Psychology* (21/02/23)
 - *Developmental Science* (21/02/23)
 - *Developmental Psychology* (21/02/23)
+- *Development and Psychopathology* (21/02/25)
 
 `convert.sh` takes the PROLINE format to TSV and `mom-abstracts.R` does the analysis.
