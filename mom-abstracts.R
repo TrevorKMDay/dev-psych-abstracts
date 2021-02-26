@@ -84,7 +84,7 @@ summary <- text %>%
     n = n()
   )
 
-png("venn1.png")
+png("plots/venn1.png")
 
 text %>%
   to_venn(1:4) %>%
@@ -113,7 +113,7 @@ all2_total <- all2 %>%
   mutate(p = n / total) %>%
   filter(!is.na(val))
 
-png("histo1.png", width = 800, 400)
+png("plots/histo1.png", width = 800, 400)
 
 ggplot(all2_total, aes(x = val, y = p * 100, fill = journal)) +
   geom_bar(stat = "identity", position = "dodge") +
